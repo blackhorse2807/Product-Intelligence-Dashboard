@@ -6,8 +6,11 @@ import env from "../config/env.js";
 const VIDEO_MIMES = ["video/mp4", "video/quicktime", "video/x-msvideo"];
 const VIDEO_EXTENSIONS = [".mp4", ".mov", ".avi"];
 const CSV_MIMES = ["text/csv", "application/vnd.ms-excel", "text/plain"];
+const IMAGE_MIMES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+const IMAGE_EXTENSIONS = [".jpg", ".jpeg", ".png", ".webp", ".gif"];
 
 const sizeLimit = { fileSize: env.maxFileSizeMb * 1024 * 1024 };
+const avatarSizeLimit = { fileSize: 5 * 1024 * 1024 };
 
 function videoFileFilter(_req, file, cb) {
   const ext = file.originalname?.toLowerCase().slice(file.originalname.lastIndexOf("."));
@@ -33,6 +36,18 @@ function csvFileFilter(_req, file, cb) {
 }
 
 export { csvFileFilter };
+
+function avatarFileFilter(_req, file, cb) {
+  const ext = file.originalname?.toLowerCase().slice(file.originalname.lastIndexOf("."));
+  const validMime = IMAGE_MIMES.includes(file.mimetype);
+  const validExt = IMAGE_EXTENSIONS.includes(ext);
+
+  if (validMime || validExt) {
+    cb(null, true);
+    return;
+  }
+  cb(new Error("Invalid file type. Allowed images: jpg, png, webp, gif"), false);
+}
 
 function createVideoStorage() {
   return new CloudinaryStorage({
@@ -62,8 +77,24 @@ function createCsvStorage() {
   });
 }
 
+function createAvatarStorage() {
+  return new CloudinaryStorage({
+    cloudinary,
+    params: {
+      folder: env.cloudinary.avatarFolder,
+      resource_type: "image",
+      allowed_formats: ["jpg", "png", "webp", "gif"],
+      transformation: [{ width: 400, height: 400, crop: "fill", gravity: "auto" }],
+      use_filename: true,
+      unique_filename: true,
+      overwrite: false,
+    },
+  });
+}
+
 let videoUploadMiddleware;
 let csvUploadMiddleware;
+let avatarUploadMiddleware;
 
 function getVideoUpload() {
   if (!videoUploadMiddleware) {
@@ -85,6 +116,17 @@ function getCsvUpload() {
     }).single("csv");
   }
   return csvUploadMiddleware;
+}
+
+function getAvatarUpload() {
+  if (!avatarUploadMiddleware) {
+    avatarUploadMiddleware = multer({
+      storage: createAvatarStorage(),
+      fileFilter: avatarFileFilter,
+      limits: avatarSizeLimit,
+    }).single("avatar");
+  }
+  return avatarUploadMiddleware;
 }
 
 export function runUpload(getMiddleware) {
@@ -111,3 +153,4 @@ export function runUpload(getMiddleware) {
 
 export const uploadVideo = runUpload(getVideoUpload);
 export const uploadCsv = runUpload(getCsvUpload);
+export const uploadAvatar = runUpload(getAvatarUpload);

@@ -18,6 +18,10 @@ const userSchema = new mongoose.Schema(
       enum: ["seller", "admin"],
       default: "seller",
     },
+    resetPasswordToken: { type: String, select: false },
+    resetPasswordExpires: { type: Date, select: false },
+    avatarUrl: { type: String, default: "" },
+    avatarPublicId: { type: String, default: "" },
   },
   { timestamps: true }
 );
@@ -38,6 +42,7 @@ userSchema.methods.toSafeObject = function toSafeObject() {
     name: this.name,
     email: this.email,
     role: this.role,
+    avatarUrl: this.avatarUrl || "",
     createdAt: this.createdAt,
     updatedAt: this.updatedAt,
   };

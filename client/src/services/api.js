@@ -24,8 +24,9 @@ api.interceptors.response.use(
     if (error.response?.status === 401 && !error.config?.url?.includes("/auth/login")) {
       localStorage.removeItem("quantacus_token");
       localStorage.removeItem("quantacus_user");
-      if (window.location.pathname !== "/login" && window.location.pathname !== "/register") {
-        window.location.assign("/login");
+      const path = window.location.pathname;
+      if (path !== "/" && path !== "/register" && path !== "/forgot-password" && !path.startsWith("/reset-password")) {
+        window.location.assign("/");
       }
     }
     return Promise.reject(new Error(message));

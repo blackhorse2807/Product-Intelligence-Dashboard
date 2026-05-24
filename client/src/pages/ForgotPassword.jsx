@@ -1,30 +1,32 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { useAuth } from "@/context/AuthContext";
+import { authService } from "@/services/authService";
 import { APP_NAME } from "@/constants";
 
-export default function Register() {
-  const navigate = useNavigate();
-  const { register } = useAuth();
-  const [name, setName] = useState("");
+export default function ForgotPassword() {
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState("");
+  const [resetUrl, setResetUrl] = useState("");
   const [error, setError] = useState("");
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
+    setMessage("");
+    setResetUrl("");
     setError("");
     try {
-      await register({ name, email, password });
-      navigate("/dashboard");
+      const res = await authService.forgotPassword(email);
+      const data = res.data?.data;
+      setMessage(data?.message || res.data?.message || "Check your email for reset instructions.");
+      if (data?.resetUrl) setResetUrl(data.resetUrl);
     } catch (err) {
-      setError(err.message || "Registration failed");
+      setError(err.message || "Request failed");
     } finally {
       setLoading(false);
     }
@@ -37,21 +39,11 @@ export default function Register() {
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-primary/15 text-primary">
             <Sparkles className="h-6 w-6" />
           </div>
-          <CardTitle className="text-2xl">Create account</CardTitle>
-          <CardDescription>Join {APP_NAME} to manage your catalog</CardDescription>
+          <CardTitle className="text-2xl">Forgot password</CardTitle>
+          <CardDescription>{APP_NAME} — we will send you a reset link</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="mb-1.5 block text-xs text-muted-foreground">Full name</label>
-              <Input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Jane Seller"
-                required
-                autoComplete="name"
-              />
-            </div>
             <div>
               <label className="mb-1.5 block text-xs text-muted-foreground">Email</label>
               <Input
@@ -60,31 +52,25 @@ export default function Register() {
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@example.com"
                 required
-                autoComplete="email"
-              />
-            </div>
-            <p className="text-xs text-muted-foreground">Password must be at least 6 characters.</p>
-            <div>
-              <label className="mb-1.5 block text-xs text-muted-foreground">Password</label>
-              <Input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                required
-                minLength={6}
-                autoComplete="new-password"
               />
             </div>
             {error && <p className="text-sm text-red-400">{error}</p>}
+            {message && <p className="text-sm text-emerald-400">{message}</p>}
+            {resetUrl && (
+              <div className="rounded-lg border border-border/60 bg-muted/20 p-3 text-xs">
+                <p className="mb-1 text-muted-foreground">Development reset link:</p>
+                <a href={resetUrl} className="break-all text-primary hover:underline">
+                  Open reset page
+                </a>
+              </div>
+            )}
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Creating account..." : "Create account"}
+              {loading ? "Sending..." : "Send reset link"}
             </Button>
           </form>
           <p className="mt-4 text-center text-sm text-muted-foreground">
-            Already have an account?{" "}
             <Link to="/" className="text-primary hover:underline">
-              Sign in
+              Back to sign in
             </Link>
           </p>
         </CardContent>

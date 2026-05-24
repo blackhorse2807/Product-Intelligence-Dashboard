@@ -135,6 +135,7 @@ async function seed() {
       type: JOB_TYPES.VIDEO_EXTRACTION,
       status: JOB_STATUS.COMPLETED,
       progress: 100,
+      createdBy: demoUser._id,
       startedAt: new Date(Date.now() - 3600000),
       completedAt: new Date(),
     },
@@ -142,6 +143,7 @@ async function seed() {
       type: JOB_TYPES.CSV_IMPORT,
       status: JOB_STATUS.RUNNING,
       progress: 45,
+      createdBy: demoUser._id,
       startedAt: new Date(),
     },
   ]);

@@ -114,7 +114,9 @@ export async function processCsvRows(rows, userId) {
 
   const seenSkus = new Set();
   const skuList = rows.map((r) => String(r.sku_id || "").trim()).filter(Boolean);
-  const existing = await Product.find({ skuId: { $in: skuList } }).select("skuId").lean();
+  const existing = userId
+    ? await Product.find({ skuId: { $in: skuList }, createdBy: userId }).select("skuId").lean()
+    : await Product.find({ skuId: { $in: skuList } }).select("skuId").lean();
   const existingSkus = new Set(existing.map((p) => p.skuId));
 
   const results = [];
@@ -168,8 +170,8 @@ export async function processCsvRows(rows, userId) {
         validation.issues.push({
           severity: "HIGH",
           type: "DUPLICATE_SKU",
-          message: `SKU "${sku}" already exists in catalog.`,
-          suggestedFix: "Use a unique SKU.",
+          message: `SKU "${sku}" already exists in your catalog.`,
+          suggestedFix: "Use a unique SKU within your account or remove the existing product.",
         });
         validation.qualityScore = Math.max(0, validation.qualityScore - 25);
         results.push({ ...validation, productId: null });

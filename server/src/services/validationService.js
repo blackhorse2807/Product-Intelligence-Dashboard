@@ -12,7 +12,7 @@ function issue({ severity, type, message, suggestedFix }) {
  * Full product validation — listing quality, title essentials, description score.
  */
 export async function validateProduct(product, options = {}) {
-  const { excludeProductId } = options;
+  const { excludeProductId, createdBy } = options;
   const issues = [];
   let score = 100;
 
@@ -117,6 +117,7 @@ export async function validateProduct(product, options = {}) {
 
   if (product.skuId && !/^PENDING-/i.test(product.skuId)) {
     const duplicateQuery = { skuId: product.skuId };
+    if (createdBy) duplicateQuery.createdBy = createdBy;
     if (excludeProductId) {
       duplicateQuery._id = { $ne: excludeProductId };
     }
@@ -126,8 +127,8 @@ export async function validateProduct(product, options = {}) {
         issue({
           severity: "HIGH",
           type: "DUPLICATE_SKU",
-          message: `SKU "${product.skuId}" is already used by another product.`,
-          suggestedFix: "Use a unique SKU for each listing.",
+          message: `SKU "${product.skuId}" is already used in your catalog.`,
+          suggestedFix: "Use a unique SKU for each of your listings.",
         })
       );
       score -= 20;

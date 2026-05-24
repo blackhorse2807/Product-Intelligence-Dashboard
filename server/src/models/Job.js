@@ -10,6 +10,7 @@ const jobSchema = new mongoose.Schema(
     completedAt: { type: Date },
     errorMessage: { type: String, default: "" },
     metadata: { type: mongoose.Schema.Types.Mixed, default: {} },
+    createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", index: true },
   },
   { timestamps: true }
 );

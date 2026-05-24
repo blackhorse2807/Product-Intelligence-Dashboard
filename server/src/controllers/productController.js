@@ -20,9 +20,10 @@ import {
   buildProductReportCsv,
   buildProductReportJson,
 } from "../services/productReportService.js";
+import { findOwnedProduct, userProductFilter } from "../utils/ownership.js";
 
-export const getProducts = asyncHandler(async (_req, res) => {
-  const products = await Product.find().sort({ updatedAt: -1 });
+export const getProducts = asyncHandler(async (req, res) => {
+  const products = await Product.find(userProductFilter(req.user._id)).sort({ updatedAt: -1 });
   return successResponse(res, products, "Products fetched");
 });
 
@@ -74,7 +75,9 @@ export const createProduct = asyncHandler(async (req, res) => {
 
   assertTitleEssentials(product);
 
-  const validation = await validateProduct(product.toObject());
+  const validation = await validateProduct(product.toObject(), {
+    createdBy: req.user._id,
+  });
   product.qualityScore = validation.qualityScore;
 
   if (hasProductPricing(product)) {
@@ -108,12 +111,7 @@ export const createProduct = asyncHandler(async (req, res) => {
 });
 
 export const getProductById = asyncHandler(async (req, res) => {
-  const product = await Product.findById(req.params.id);
-  if (!product) {
-    const err = new Error("Product not found");
-    err.statusCode = 404;
-    throw err;
-  }
+  const product = await findOwnedProduct(req.params.id, req.user._id);
 
   const [storedIssues, competitorPrices, alerts] = await Promise.all([
     ProductIssue.find({ productId: product._id }).sort({ createdAt: -1 }),
@@ -123,6 +121,7 @@ export const getProductById = asyncHandler(async (req, res) => {
 
   const validation = await validateProduct(product.toObject(), {
     excludeProductId: product._id,
+    createdBy: req.user._id,
   });
 
   const competitorPricing = await getCompetitorPricingPayload(product);
@@ -171,12 +170,7 @@ export const updateProduct = asyncHandler(async (req, res) => {
     throw err;
   }
 
-  const product = await Product.findById(req.params.id);
-  if (!product) {
-    const err = new Error("Product not found");
-    err.statusCode = 404;
-    throw err;
-  }
+  const product = await findOwnedProduct(req.params.id, req.user._id);
 
   Object.assign(product, updates);
 
@@ -197,6 +191,7 @@ export const updateProduct = asyncHandler(async (req, res) => {
 
   const validation = await validateProduct(product.toObject(), {
     excludeProductId: product._id,
+    createdBy: req.user._id,
   });
 
   product.qualityScore = validation.qualityScore;
@@ -245,12 +240,7 @@ export const updateProduct = asyncHandler(async (req, res) => {
 });
 
 export const enhanceTitle = asyncHandler(async (req, res) => {
-  const product = await Product.findById(req.params.id);
-  if (!product) {
-    const err = new Error("Product not found");
-    err.statusCode = 404;
-    throw err;
-  }
+  const product = await findOwnedProduct(req.params.id, req.user._id);
 
   if (!product.extractedAttributes?.manualFieldsSaved) {
     const err = new Error(
@@ -296,12 +286,7 @@ export const setActiveTitleSource = asyncHandler(async (req, res) => {
     throw err;
   }
 
-  const product = await Product.findById(req.params.id);
-  if (!product) {
-    const err = new Error("Product not found");
-    err.statusCode = 404;
-    throw err;
-  }
+  const product = await findOwnedProduct(req.params.id, req.user._id);
 
   const enhancement = product.extractedAttributes?.titleEnhancement;
   const originalTitle =
@@ -338,6 +323,7 @@ export const setActiveTitleSource = asyncHandler(async (req, res) => {
 
   const validation = await validateProduct(product.toObject(), {
     excludeProductId: product._id,
+    createdBy: req.user._id,
   });
 
   product.qualityScore = validation.qualityScore;
@@ -357,11 +343,13 @@ export const setActiveTitleSource = asyncHandler(async (req, res) => {
 });
 
 export const getCompetitorPrices = asyncHandler(async (req, res) => {
+  await findOwnedProduct(req.params.id, req.user._id);
   const prices = await CompetitorPrice.find({ productId: req.params.id }).sort({ lastCheckedAt: -1 });
   return successResponse(res, prices, "Competitor prices fetched");
 });
 
 export const downloadProductReport = asyncHandler(async (req, res) => {
+  await findOwnedProduct(req.params.id, req.user._id);
   const format = String(req.query.format || "csv").toLowerCase();
 
   if (format === "json") {

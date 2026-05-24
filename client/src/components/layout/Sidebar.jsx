@@ -6,6 +6,7 @@ import {
   ListTodo,
   Bell,
   Sparkles,
+  UserCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { APP_NAME, ROUTES } from "@/constants";
@@ -16,6 +17,7 @@ const navItems = [
   { to: ROUTES.PRODUCTS, label: "Products", icon: Package },
   { to: ROUTES.JOBS, label: "Jobs", icon: ListTodo },
   { to: ROUTES.ALERTS, label: "Alerts", icon: Bell },
+  { to: ROUTES.PROFILE, label: "Profile", icon: UserCircle },
 ];
 
 export function Sidebar({ className, onNavigate }) {

@@ -2,7 +2,7 @@ import mongoose from "mongoose";
 
 const productSchema = new mongoose.Schema(
   {
-    skuId: { type: String, required: true, unique: true, trim: true },
+    skuId: { type: String, required: true, trim: true },
     title: { type: String, required: true, trim: true },
     description: { type: String, default: "" },
     brand: { type: String, default: "" },
@@ -35,5 +35,7 @@ const productSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+productSchema.index({ skuId: 1, createdBy: 1 }, { unique: true });
 
 export const Product = mongoose.model("Product", productSchema);

@@ -25,6 +25,7 @@ export const uploadVideo = asyncHandler(async (req, res) => {
     type: JOB_TYPES.VIDEO_EXTRACTION,
     status: JOB_STATUS.PENDING,
     progress: 0,
+    createdBy: req.user._id,
     metadata: {
       videoUrl: media.url,
       videoPublicId: media.publicId,

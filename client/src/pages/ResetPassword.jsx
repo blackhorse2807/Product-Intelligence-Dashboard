@@ -1,17 +1,19 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { authService } from "@/services/authService";
 import { useAuth } from "@/context/AuthContext";
-import { APP_NAME } from "@/constants";
 
-export default function Register() {
+export default function ResetPassword() {
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { register } = useAuth();
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
+  const { applySession } = useAuth();
+  const tokenFromUrl = searchParams.get("token") || "";
+
+  const [token, setToken] = useState(tokenFromUrl);
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -21,10 +23,14 @@ export default function Register() {
     setLoading(true);
     setError("");
     try {
-      await register({ name, email, password });
+      const res = await authService.resetPassword({ token, password });
+      const data = res.data?.data;
+      if (data?.token && data?.user) {
+        applySession({ token: data.token, user: data.user });
+      }
       navigate("/dashboard");
     } catch (err) {
-      setError(err.message || "Registration failed");
+      setError(err.message || "Reset failed");
     } finally {
       setLoading(false);
     }
@@ -37,54 +43,36 @@ export default function Register() {
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-primary/15 text-primary">
             <Sparkles className="h-6 w-6" />
           </div>
-          <CardTitle className="text-2xl">Create account</CardTitle>
-          <CardDescription>Join {APP_NAME} to manage your catalog</CardDescription>
+          <CardTitle className="text-2xl">Reset password</CardTitle>
+          <CardDescription>Enter your new password below</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
+            {!tokenFromUrl && (
+              <div>
+                <label className="mb-1.5 block text-xs text-muted-foreground">Reset token</label>
+                <Input value={token} onChange={(e) => setToken(e.target.value)} required />
+              </div>
+            )}
             <div>
-              <label className="mb-1.5 block text-xs text-muted-foreground">Full name</label>
-              <Input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Jane Seller"
-                required
-                autoComplete="name"
-              />
-            </div>
-            <div>
-              <label className="mb-1.5 block text-xs text-muted-foreground">Email</label>
-              <Input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@example.com"
-                required
-                autoComplete="email"
-              />
-            </div>
-            <p className="text-xs text-muted-foreground">Password must be at least 6 characters.</p>
-            <div>
-              <label className="mb-1.5 block text-xs text-muted-foreground">Password</label>
+              <label className="mb-1.5 block text-xs text-muted-foreground">New password</label>
               <Input
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                required
                 minLength={6}
+                required
                 autoComplete="new-password"
               />
             </div>
             {error && <p className="text-sm text-red-400">{error}</p>}
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Creating account..." : "Create account"}
+              {loading ? "Updating..." : "Update password"}
             </Button>
           </form>
           <p className="mt-4 text-center text-sm text-muted-foreground">
-            Already have an account?{" "}
             <Link to="/" className="text-primary hover:underline">
-              Sign in
+              Back to sign in
             </Link>
           </p>
         </CardContent>

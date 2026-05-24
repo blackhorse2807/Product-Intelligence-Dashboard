@@ -5,8 +5,8 @@
 | Layer | Stack |
 |-------|--------|
 | **Frontend** | React 19, Vite 6, Tailwind CSS, Radix UI, React Router, Axios |
-| **Backend** | Node.js, Express 4, MongoDB (Mongoose) |
-| **Media** | Cloudinary (video storage), FFmpeg (frame extraction), Tesseract.js (OCR) |
+| **Backend** | Node.js, Express 4, MongoDB (Mongoose), JWT (`jsonwebtoken`), `bcryptjs`, `node-cron` |
+| **Media** | Cloudinary (videos, profile avatars, optional CSV storage) |
 
 ---
 
@@ -33,26 +33,43 @@
    - [CSV parsing & validation](#10-csv-parsing--validation)
    - [Competitor pricing intelligence](#11-competitor-pricing-intelligence)
    - [Alerts](#12-alerts)
-10. [Frontend application](#frontend-application)
-11. [Troubleshooting](#troubleshooting)
-12. [Production notes](#production-notes)
+13. [Authentication & per-user data](#authentication--per-user-data)
+14. [Frontend application](#frontend-application)
+15. [Troubleshooting](#troubleshooting)
+16. [Production notes](#production-notes)
 
 ---
 
 ## Features
 
-- **Video upload** → Cloudinary storage → async job: extract frames → OCR → structured catalog fields → validation → alerts
-- **CSV bulk import** with header validation, per-row scoring, partial success (valid rows imported, invalid rows reported)
+### Ingestion & catalog
+
+- **Video upload** → Cloudinary → async job: frames → OCR → catalog fields → validation → alerts
+- **CSV bulk import** with header validation, per-row scoring, partial success
 - **Manual product entry** without video or CSV
-- **Product details** with OCR preview (before save) vs saved catalog (after save)
-- **Deterministic title enhancement** from saved brand, category, color, size, material only (no OCR/AI text in title builder)
-- **Title source toggle** — switch listing title between original and enhanced (persisted in DB)
-- **Competitor pricing dashboard** — simulated marketplace prices, analytics, and pricing recommendations
-- **JWT authentication** — register, login, protected API routes, session persistence
-- **Product report download** — CSV export with catalog, validation, pricing, and alerts
-- **Auto competitor refresh** — server cron every 1 minute + client auto-refresh on product page
-- **Dashboard** — aggregate quality scores and issue severity counts
-- **Jobs & alerts** pages for async processing status and seller notifications
+- **Product details** — OCR preview before save; saved catalog after save
+- **Deterministic title enhancement** from saved fields only (brand, category, color, size, material)
+- **Title source toggle** — original vs enhanced listing title (persisted in DB)
+
+### Pricing & reports
+
+- **Competitor pricing dashboard** — simulated marketplace prices, analytics, recommendations
+- **Auto competitor refresh** — server cron every **1 minute** + product page auto-refresh every **60s** (manual refresh has 60s cooldown)
+- **Product report download** — CSV (or JSON) with catalog, validation, competitor table, alerts
+
+### Auth & accounts
+
+- **JWT authentication** — register, login, Bearer token on all protected routes
+- **Login-first UX** — `/` is the sign-in page; dashboard and app routes require authentication
+- **Per-user workspace** — products, jobs, dashboard metrics, and alerts scoped to the signed-in seller
+- **Profile page** — view stats, edit name, upload profile picture (Cloudinary)
+- **Forgot / reset password** — token-based reset flow (reset link logged in dev; email integration ready)
+
+### Operations
+
+- **Dashboard** — quality summary for **your** products only
+- **Jobs & alerts** — only records tied to your account
+- **Per-seller SKU uniqueness** — same `sku_id` in CSV can be used by different accounts (compound index on `skuId` + `createdBy`)
 
 ---
 
@@ -61,46 +78,36 @@
 ```mermaid
 flowchart TB
   subgraph Client["React Client (Vite :5173)"]
-    UP[Upload Center]
-    PD[Product Details]
+    LOGIN["/ Login"]
     DASH[Dashboard]
+    UP[Upload]
+    PD[Product Details]
+    PROF[Profile]
   end
 
   subgraph API["Express API (:5000)"]
-    R[routes/index.js]
-    JP[jobProcessor]
-    VAL[validationService]
-    TIT[titleGenerationService]
-    CSV[csvProcessingService]
-    CP[competitorPricingService]
+    AUTH[JWT auth]
+    R[routes]
+    CRON[node-cron pricing]
   end
 
-  subgraph External["External services"]
+  subgraph External["External"]
     CL[Cloudinary]
     DB[(MongoDB)]
   end
 
-  subgraph Local["Server-local processing"]
-    FF[FFmpeg frames]
-    OCR[Tesseract OCR]
-  end
-
-  UP -->|POST /upload-video| R
-  UP -->|POST /upload-products-csv| R
-  UP -->|POST /products| R
+  LOGIN -->|POST /auth/login| AUTH
+  AUTH --> R
+  DASH -->|Bearer token| R
+  UP --> R
+  PD --> R
+  PROF --> R
   R --> CL
-  R --> JP
-  JP --> FF
-  FF --> OCR
-  JP --> VAL
-  R --> CSV
-  R --> TIT
-  PD -->|GET /products/:id| R
-  R --> CP
   R --> DB
-  JP --> DB
-  DASH --> R
+  CRON --> DB
 ```
+
+**Protected routes:** All `/api/*` endpoints except `/health`, `/auth/register`, `/auth/login`, `/auth/forgot-password`, and `/auth/reset-password` require `Authorization: Bearer <token>`.
 
 **Request flow (video):**
 
@@ -118,22 +125,21 @@ Quantacus/
 ├── client/                 # React + Vite frontend
 │   ├── public/             # favicon.svg, static assets
 │   ├── src/
-│   │   ├── components/     # UI, product, upload, dashboard
-│   │   ├── pages/          # Dashboard, Products, Upload, etc.
-│   │   ├── services/       # Axios API wrappers
-│   │   └── utils/          # formatters, pricing helpers
-│   └── vite.config.js      # dev proxy /api → localhost:5000
+│   │   ├── context/        # AuthContext, AppContext
+│   │   ├── pages/          # Login, Dashboard, Profile, Upload, …
+│   │   ├── services/       # api.js (JWT interceptor), product, auth, …
+│   │   └── components/     # auth/ProtectedRoute, product, upload
+│   └── vite.config.js      # proxy /api → localhost:5000
 ├── server/
 │   ├── src/
-│   │   ├── config/         # env, db, cloudinary
-│   │   ├── controllers/
-│   │   ├── jobs/           # jobProcessor (video pipeline)
-│   │   ├── middlewares/    # upload, csv, errors
-│   │   ├── models/         # Product, Job, Alert, CompetitorPrice, …
-│   │   ├── routes/
-│   │   ├── services/       # OCR, frames, CSV, pricing, validation
-│   │   ├── utils/          # ffmpeg, ocr text, description quality
-│   │   └── validators/     # titleValidator, csvValidator
+│   │   ├── config/         # env, db (index sync), cloudinary
+│   │   ├── controllers/    # auth, product, upload, dashboard, …
+│   │   ├── jobs/           # jobProcessor, competitorRefreshCron
+│   │   ├── middlewares/    # auth, upload (video/csv/avatar), errors
+│   │   ├── models/         # User, Product, Job, Alert, …
+│   │   ├── routes/         # auth public + protected app routes
+│   │   ├── services/       # OCR, CSV, pricing, productReport, …
+│   │   └── utils/          # ownership.js, jwt.js, ffmpeg, …
 │   └── temp/               # per-job video + frame files (gitignored)
 ├── package.json            # root scripts: install:all, dev:server, dev:client
 └── README.md
@@ -150,7 +156,7 @@ Install the following before running locally:
 | **Node.js** | 18.x or 20.x LTS recommended |
 | **npm** | 9+ (comes with Node) |
 | **MongoDB** | Atlas cluster or local `mongod` |
-| **Cloudinary account** | Free tier works; needed for **video upload** only |
+| **Cloudinary account** | Needed for **video upload** and **profile pictures**; CSV/manual entry work without it |
 | **Disk space** | Temp folder `server/temp/` stores downloaded videos and frames during jobs |
 
 > **Note:** FFmpeg and FFprobe are bundled via `ffmpeg-static` and `ffprobe-static` npm packages — you do **not** need a system FFmpeg install for frame extraction.
@@ -195,7 +201,7 @@ Using `/api` lets Vite proxy requests to `http://localhost:5000` (see `client/vi
 - Create a database (e.g. `product-intelligence`) in [MongoDB Atlas](https://www.mongodb.com/cloud/atlas) or run MongoDB locally.
 - Paste the connection string into `server/.env` as `MONGODB_URI`.
 
-### 4. Cloudinary (video uploads)
+### 4. Cloudinary (video & avatars)
 
 1. Open [Cloudinary Console](https://console.cloudinary.com/) → **Programmable Media** → **API Keys**.
 2. Copy **Cloud name**, **API Key**, and **API Secret** into `server/.env`.
@@ -219,11 +225,15 @@ npm run dev:client
 
 Open **http://localhost:5173**
 
-### 6. Optional — seed sample data
+### 6. Optional — seed demo data
 
 ```bash
 npm run seed
 ```
+
+Creates a demo user (`demo@quantacus.local` / `demo123`), sample products (owned by that user), jobs, alerts, and competitor prices.
+
+**After schema changes:** Restart the server once so MongoDB syncs indexes (e.g. per-user SKU). Look for `[db] Dropped legacy global SKU index` in logs if upgrading an existing database.
 
 ---
 
@@ -244,7 +254,7 @@ npm run seed
 | `JWT_EXPIRES_IN` | No | Token lifetime (default `7d`) |
 | `MAX_FILE_SIZE_MB` | No | Max upload size (default from env config) |
 
-\* Required for video upload; CSV and manual entry work without Cloudinary.
+\* Required for video upload and profile avatars. CSV and manual entry work without Cloudinary.
 
 ### Client (`client/.env`)
 
@@ -269,8 +279,11 @@ Use this checklist to confirm everything works:
 | 7 | **Enhance title** (after manual save) | Enhanced title card appears; toggle Original/Enhanced |
 | 8 | **Upload → Products CSV** with valid headers | Import summary with valid/invalid row counts |
 | 9 | **Upload → Product Video** (short MP4, visible text/labels) | Job completes; product created with OCR extraction table |
-| 10 | **Jobs** page | Video job shows `COMPLETED` |
-| 11 | **Alerts** page | Alerts from validation / pricing |
+| 10 | **Jobs** page | Only your video/CSV jobs listed |
+| 11 | **Alerts** page | Alerts for your products only |
+| 12 | **Profile** — upload photo, edit name | Avatar in navbar; stats show your counts |
+| 13 | **Forgot password** at `/forgot-password` | Dev: reset link in UI + server console |
+| 14 | Second account — upload **same CSV** as another user | Imports succeed (SKU unique per seller, not global) |
 
 **Sample CSV headers (required):**
 
@@ -291,13 +304,17 @@ Base URL: `http://localhost:5000/api` (or `/api` via Vite proxy)
 |--------|------|-------------|
 | `GET` | `/health` | API health check |
 
-### Auth (public)
+### Auth
 
-| Method | Path | Body | Description |
-|--------|------|------|-------------|
-| `POST` | `/auth/register` | `{ name, email, password }` | Create account; returns JWT |
-| `POST` | `/auth/login` | `{ email, password }` | Sign in; returns JWT |
-| `GET` | `/auth/me` | — | Current user (Bearer token required) |
+| Method | Path | Auth | Body / notes |
+|--------|------|------|----------------|
+| `POST` | `/auth/register` | Public | `{ name, email, password }` → `{ user, stats, token }` |
+| `POST` | `/auth/login` | Public | `{ email, password }` → `{ user, stats, token }` |
+| `POST` | `/auth/forgot-password` | Public | `{ email }` — in dev, response may include `resetUrl` |
+| `POST` | `/auth/reset-password` | Public | `{ token, password }` → logs in with new JWT |
+| `GET` | `/auth/me` | Bearer | Profile + stats (`productCount`, `jobCount`, `openAlerts`) |
+| `PATCH` | `/auth/profile` | Bearer | `{ name }` |
+| `POST` | `/auth/profile/avatar` | Bearer | `multipart/form-data` field **`avatar`** (jpg/png/webp/gif, max 5MB) |
 
 All other `/api/*` routes require `Authorization: Bearer <token>`.
 
@@ -312,16 +329,16 @@ All other `/api/*` routes require `Authorization: Bearer <token>`.
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/jobs` | List jobs |
-| `GET` | `/jobs/:id` | Job status, progress, metadata (`productId` when done) |
+| `GET` | `/jobs` | List **your** jobs (`createdBy`) |
+| `GET` | `/jobs/:id` | Job detail (403 if not yours) |
 
 ### Products
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/products` | List all products |
-| `POST` | `/products` | Create product (manual entry JSON body) |
-| `GET` | `/products/:id` | Full details + validation + competitor pricing payload |
+| `GET` | `/products` | List **your** products (`createdBy`) |
+| `POST` | `/products` | Create product (manual entry); sets `createdBy` |
+| `GET` | `/products/:id` | Full details (404 if not yours) |
 | `PATCH` | `/products/:id` | Update catalog fields; sets `manualFieldsSaved` |
 | `POST` | `/products/:id/enhance-title` | Generate enhanced title (requires manual save) |
 | `PATCH` | `/products/:id/title-source` | Body: `{ "source": "original" \| "enhanced" }` |
@@ -339,8 +356,8 @@ All other `/api/*` routes require `Authorization: Bearer <token>`.
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/dashboard/quality-summary` | Aggregated quality metrics |
-| `GET` | `/alerts` | List alerts |
+| `GET` | `/dashboard/quality-summary` | Metrics for **your** products/issues/alerts only |
+| `GET` | `/alerts` | Alerts for **your** products only |
 
 ---
 
@@ -362,6 +379,11 @@ All scoring and enhancement described below is **deterministic** (rule-based). N
 | Product validation | `server/src/services/validationService.js` |
 | CSV | `server/src/validators/csvValidator.js`, `server/src/services/csvProcessingService.js` |
 | Competitor pricing | `server/src/services/competitorPricingService.js` |
+| Pricing cron | `server/src/jobs/competitorRefreshCron.js` |
+| Product report export | `server/src/services/productReportService.js` |
+| Auth & JWT | `server/src/controllers/authController.js`, `server/src/middlewares/auth.js`, `server/src/utils/jwt.js` |
+| Per-user access | `server/src/utils/ownership.js` |
+| User model | `server/src/models/User.js` |
 
 ---
 
@@ -554,7 +576,7 @@ Starts at **100**. Applies penalties (clamped 0–100):
 | Invalid/missing price | −15 | HIGH |
 | Price > MRP | −10 | MEDIUM |
 | Missing media (no video/image public ID) | −12 | HIGH |
-| Duplicate SKU (DB lookup) | −20 | HIGH |
+| Duplicate SKU (within your catalog) | −20 | HIGH |
 | ≥2 of color/size/material missing | −10 | MEDIUM |
 | `out_of_stock` availability | −5 | MEDIUM |
 
@@ -578,7 +600,7 @@ Starts at **100**. Applies penalties (clamped 0–100):
 
 **Per-row validation (`validateProductRow`):**
 
-- SKU required; duplicate within file; duplicate in DB (pre-query all SKUs in file).
+- SKU required; duplicate within file; duplicate in **your** catalog only (`createdBy` + `skuId` query).
 - Title required; `validateTitle` if present.
 - `price` and `mrp` must be > 0; `mrp >= price`.
 - Brand missing → MEDIUM issue.
@@ -586,7 +608,13 @@ Starts at **100**. Applies penalties (clamped 0–100):
 - Availability normalized: `in stock` → `in_stock`, etc.
 - **Valid row:** no HIGH-severity issues.
 
-**Import:** Valid rows → `Product.create` with `manualFieldsSaved: true`, `generateEnhancedTitle`, stored `enhancedTitle` + `suggestedKeywords`. Invalid rows skipped; summary returns per-row issues (partial success).
+**SKU uniqueness (multi-tenant):**
+
+- MongoDB compound unique index: `{ skuId, createdBy }` (not global `skuId` alone).
+- Different sellers may import the same `sku_id` in CSV without conflict.
+- On server start, legacy global `skuId` index is dropped if present (`config/db.js` → `syncProductIndexes`).
+
+**Import:** Valid rows → `Product.create` with `createdBy`, `manualFieldsSaved: true`, `generateEnhancedTitle`, etc. Invalid rows skipped (partial success).
 
 ---
 
@@ -630,9 +658,13 @@ Same product + platform + refresh token → same price (deterministic).
 | Within 5% of average OR ≤10% vs lowest | LOW | Competitively priced |
 | Flipkart > average (else) | MEDIUM | Above market average |
 
-**Auto-generation:** On `GET /products/:id`, if no `CompetitorPrice` records exist but `hasProductPricing(product)` (price or MRP > 0), `refreshCompetitorPrices` runs once. Frontend also bootstraps if analytics are empty.
+**Auto-generation:** On `GET /products/:id`, if no `CompetitorPrice` rows exist but the product has pricing, `refreshCompetitorPrices` runs once.
 
-**Refresh:** `POST /competitor-prices/refresh/:productId` deletes old records, inserts new, updates pricing alerts.
+**Scheduled refresh:** `jobs/competitorRefreshCron.js` runs **`node-cron` every 1 minute** and refreshes competitor prices for all products with `price` or `mrp` > 0 (background job).
+
+**Client refresh:** Product details page auto-refreshes pricing every **60 seconds** when the tab is visible. Manual **Refresh** button has a **60s cooldown** (label shows countdown).
+
+**On-demand refresh:** `POST /competitor-prices/refresh/:productId` (must own the product) deletes old rows, inserts new, updates pricing alerts.
 
 ---
 
@@ -646,22 +678,83 @@ Same product + platform + refresh token → same price (deterministic).
 
 ---
 
+## Authentication & per-user data
+
+### User model (`models/User.js`)
+
+| Field | Purpose |
+|-------|---------|
+| `name`, `email`, `password` | Account credentials (password hashed with bcrypt) |
+| `role` | `seller` or `admin` |
+| `avatarUrl`, `avatarPublicId` | Profile picture (Cloudinary) |
+| `resetPasswordToken`, `resetPasswordExpires` | Forgot-password flow (hashed token, 1h expiry) |
+
+### Product & job ownership
+
+| Model | Ownership field | Behavior |
+|-------|-----------------|----------|
+| `Product` | `createdBy` → `User` | All product APIs filter or assert owner via `utils/ownership.js` |
+| `Job` | `createdBy` (+ `metadata.userId` for video jobs) | Jobs list/detail scoped to user |
+
+**Compound index:** `Product` index `{ skuId: 1, createdBy: 1 }` unique — SKUs are unique **per seller**, not globally.
+
+### JWT flow
+
+1. Register or login → `signAccessToken` (`utils/jwt.js`, `JWT_SECRET`, default expiry `7d`).
+2. Client stores token in `localStorage` (`quantacus_token`); Axios adds `Authorization: Bearer …`.
+3. `middlewares/auth.js` → `authenticate` loads user on protected routes.
+4. Invalid/expired token → `401`; client redirects to `/` (login).
+
+### Forgot password
+
+1. `POST /auth/forgot-password` — generates random token, stores SHA-256 hash on user, 1-hour expiry.
+2. Dev: `resetUrl` returned in API response and printed to server console.
+3. `POST /auth/reset-password` — validates token, sets new password, returns JWT.
+
+### Frontend route map
+
+| Route | Access | Page |
+|-------|--------|------|
+| `/` | Guest | Login (home) |
+| `/register` | Guest | Sign up |
+| `/forgot-password` | Guest | Request reset |
+| `/reset-password?token=…` | Guest | Set new password |
+| `/dashboard` | Protected | Dashboard (your metrics) |
+| `/profile` | Protected | Profile, avatar, stats |
+| `/upload` | Protected | Video, CSV, manual entry |
+| `/products` | Protected | Your product table |
+| `/products/:id` | Protected | Details, report download, pricing |
+| `/jobs` | Protected | Your async jobs |
+| `/alerts` | Protected | Your alerts |
+
+**Guards:** `ProtectedRoute` → redirect to `/` if not authenticated. `GuestRoute` → redirect to `/dashboard` if already signed in.
+
+---
+
 ## Frontend application
 
 | Route | Page | Purpose |
 |-------|------|---------|
-| `/` | Dashboard | Quality summary chart/cards |
-| `/products` | Products | Sortable product table |
-| `/products/:id` | Product details | Catalog, edit dialog, title enhancement, competitor pricing |
+| `/` | Login | Home / sign-in (required before app) |
+| `/register` | Register | Create account |
+| `/forgot-password` | Forgot password | Request reset link |
+| `/reset-password` | Reset password | New password (from email/link token) |
+| `/dashboard` | Dashboard | Quality summary for your catalog |
+| `/profile` | Profile | Name, email, avatar upload, workspace stats |
 | `/upload` | Upload center | Video, CSV, manual entry |
-| `/jobs` | Jobs | Async job status |
-| `/alerts` | Alerts | Seller notifications |
+| `/products` | Products | Your products table |
+| `/products/:id` | Product details | Catalog, edit, title, report CSV, competitor pricing |
+| `/jobs` | Jobs | Your async jobs |
+| `/alerts` | Alerts | Your seller notifications |
 
 **Product details UX:**
 
-- Before `manualFieldsSaved`: show **OCR extraction table** with confidence.
-- After save: show **saved product data** only; edit via dialog.
-- **Competitor pricing** enabled when `hasPricing` (price or MRP > 0 on saved product).
+- Before `manualFieldsSaved`: **OCR extraction table** with confidence.
+- After save: **saved product data**; edit via dialog.
+- **Download report** — CSV intelligence export.
+- **Competitor pricing** when `hasPricing`; auto-refresh every 60s; manual refresh with cooldown.
+
+**Auth UX:** Navbar shows avatar (if set), name, email, logout. Token attached to all API calls via `client/src/services/api.js`.
 
 ---
 
@@ -670,26 +763,34 @@ Same product + platform + refresh token → same price (deterministic).
 | Problem | Solution |
 |---------|----------|
 | `MONGODB_URI is not set` | Create `server/.env` from `.env.example` |
+| `401 Unauthorized` on API calls | Sign in again; ensure `JWT_SECRET` unchanged; check `VITE_API_URL` |
 | CORS errors | Match `CLIENT_URL` in server `.env` to frontend URL |
 | Video upload fails | Verify Cloudinary credentials; check `MAX_FILE_SIZE_MB` |
+| Avatar upload fails | Same Cloudinary keys; image max 5MB; field name must be `avatar` |
 | Job stuck / failed | Open **Jobs** page; check server logs for `[frames]`, `[ocr]`, `[Job]` |
-| OCR empty | Use video with clear on-screen text; ensure frames downloaded (Cloudinary URL reachable) |
+| OCR empty | Use video with clear on-screen text; Cloudinary URL reachable |
 | Competitor section empty | Set **Price** or **MRP** > 0 and save product details |
 | CSV “missing headers” | Use exact required column names (case-insensitive, spaces → `_`) |
-| Port in use | Change `PORT` in `server/.env` and Vite proxy target in `vite.config.js` |
+| CSV duplicate on second account | Restart server to apply per-user SKU index; see `[db] Dropped legacy global SKU index` |
+| CSV duplicate on same account | Expected — SKU already in **your** catalog |
+| Port in use | Change `PORT` in `server/.env` and Vite proxy in `vite.config.js` |
+| Reset password link missing | Check server console in dev; use `/forgot-password` UI link |
 
-**Logs:** Server logs prefixed with `[frames]`, `[ocr]`, `[ai]`, `[alerts]`, `[pricing]`, `[Job]`.
+**Logs:** `[frames]`, `[ocr]`, `[ai]`, `[alerts]`, `[pricing]`, `[cron]`, `[Job]`, `[auth]`, `[db]`.
 
 ---
 
 ## Production notes
 
 - Set `NODE_ENV=production`, strong `MONGODB_URI`, and production `CLIENT_URL` / `VITE_API_URL`.
+- Use a long random `JWT_SECRET` (never commit it). Disable `resetUrl` / `resetToken` in forgot-password API responses.
+- Integrate email (SendGrid, SES, etc.) for password reset links instead of console logging.
 - Replace `enqueueJob` (`setImmediate`) with a durable queue (**BullMQ**, Redis) for reliability.
-- Cloudinary temp downloads require outbound network from API server.
-- Run `npm run build:client` and serve `client/dist` behind nginx or static host; point `VITE_API_URL` to public API.
-- Consider rate limits on upload endpoints and virus scanning for user videos.
-- `runAiAnalysis` can be replaced with a real vision API without changing the rest of the pipeline interface.
+- Cloudinary: videos, avatars, optional CSV; temp video downloads need outbound network.
+- Run `npm run build:client` and serve `client/dist`; configure API URL for production.
+- Rate-limit auth and upload endpoints; scan user-uploaded videos/images.
+- Competitor cron refreshes all priced products globally — acceptable for demo; consider scoping or queueing at scale.
+- `runAiAnalysis` can be swapped for a real vision API without changing the pipeline interface.
 
 ---
 

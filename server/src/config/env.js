@@ -14,6 +14,7 @@ const env = {
     apiSecret: process.env.CLOUDINARY_API_SECRET,
     videoFolder: "quantacus/videos",
     imageFolder: "quantacus/images",
+    avatarFolder: "quantacus/avatars",
     csvFolder: "quantacus/csv",
   },
 };

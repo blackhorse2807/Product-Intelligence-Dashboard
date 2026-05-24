@@ -84,8 +84,8 @@ export function validateProductRow(row, rowNumber, context = {}) {
       issue({
         severity: "HIGH",
         type: "DUPLICATE_SKU",
-        message: `SKU "${sku}" already exists in catalog.`,
-        suggestedFix: "Use a new SKU or update the existing product.",
+        message: `SKU "${sku}" already exists in your catalog.`,
+        suggestedFix: "Use a new SKU or update the existing product in your account.",
       })
     );
   }

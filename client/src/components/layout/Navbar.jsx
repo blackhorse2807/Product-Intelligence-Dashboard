@@ -1,8 +1,10 @@
+import { Link } from "react-router-dom";
 import { LogOut, Menu, Search, UserCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useApp } from "@/context/AppContext";
 import { useAuth } from "@/context/AuthContext";
+import { ROUTES } from "@/constants";
 
 export function Navbar() {
   const { toggleSidebar } = useApp();
@@ -21,11 +23,24 @@ export function Navbar() {
       </div>
 
       <div className="flex items-center gap-3">
-        <div className="hidden text-right sm:block">
-          <p className="text-sm font-medium">{user?.name || "Seller"}</p>
-          <p className="text-xs text-muted-foreground">{user?.email}</p>
-        </div>
-        <UserCircle className="hidden h-8 w-8 text-muted-foreground sm:block" />
+        <Link
+          to={ROUTES.PROFILE}
+          className="hidden items-center gap-2 rounded-lg px-2 py-1 text-right transition-colors hover:bg-accent sm:flex"
+        >
+          {user?.avatarUrl ? (
+            <img
+              src={user.avatarUrl}
+              alt={user.name}
+              className="h-9 w-9 rounded-full border border-border object-cover"
+            />
+          ) : (
+            <UserCircle className="h-8 w-8 text-muted-foreground" />
+          )}
+          <div>
+            <p className="text-sm font-medium">{user?.name || "Seller"}</p>
+            <p className="text-xs text-muted-foreground">{user?.email}</p>
+          </div>
+        </Link>
         <Button variant="outline" size="sm" className="gap-2" onClick={logout}>
           <LogOut className="h-4 w-4" />
           <span className="hidden sm:inline">Logout</span>
