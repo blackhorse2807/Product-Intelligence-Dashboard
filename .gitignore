@@ -1,0 +1,10 @@
+node_modules/
+dist/
+build/
+.env
+.env.local
+*.log
+server/temp/**/*
+!server/temp/frames/.gitkeep
+!server/temp/videos/.gitkeep
+.DS_Store
