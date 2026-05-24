@@ -1,0 +1,7 @@
+sku_id,product_title,brand,category,price,mrp,availability,description,color,material,size,image_url
+SHOE001,Nike Blue Running Shoes,Nike,Shoes,3999,4999,in_stock,Lightweight running shoes with breathable mesh upper and cushioned sole for daily sports activities.,Blue,Mesh,9,https://example.com/shoe1.jpg
+BAG001,Puma Grey Backpack,Puma,Bags,2499,2999,in_stock,Spacious backpack with multiple compartments and padded shoulder straps for travel and college use.,Grey,Polyester,Medium,https://example.com/bag1.jpg
+WATCH001,Titan Analog Watch,Titan,Watches,5499,6999,in_stock,Classic analog wrist watch with leather strap and water resistant design.,Black,Leather,Standard,https://example.com/watch1.jpg
+,Good Shoes,,Shoes,abc,2000,in_stock,best amazing shoes,Blue,,8,
+DRESS001,Awesome Premium Dress,Zara,Dresses,3500,3000,out_of_stock,awesome premium amazing product,Red,Cotton,M,https://example.com/dress1.jpg
+SHOE002,Nike Nike Running Shoes Shoes,Nike,Shoes,4299,5999,in_stock,shoe shoe shoe shoe best shoe,White,Mesh,10,https://example.com/shoe2.jpg
