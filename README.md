@@ -191,7 +191,7 @@ cp client/.env.example client/.env
 Set in `client/.env`:
 
 ```env
-VITE_API_URL=/api
+VITE_API_URL=https://product-intelligence-dashboard-3n1d.onrender.com/api
 ```
 
 Using `/api` lets Vite proxy requests to `http://localhost:5000` (see `client/vite.config.js`). Alternatively use `VITE_API_URL=http://localhost:5000/api` if not using the proxy.
