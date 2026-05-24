@@ -12,6 +12,4 @@ export const authService = {
       headers: { "Content-Type": "multipart/form-data" },
     });
   },
-  forgotPassword: (email) => api.post("/auth/forgot-password", { email }),
-  resetPassword: (payload) => api.post("/auth/reset-password", payload),
 };

@@ -25,7 +25,7 @@ api.interceptors.response.use(
       localStorage.removeItem("quantacus_token");
       localStorage.removeItem("quantacus_user");
       const path = window.location.pathname;
-      if (path !== "/" && path !== "/register" && path !== "/forgot-password" && !path.startsWith("/reset-password")) {
+      if (path !== "/" && path !== "/register") {
         window.location.assign("/");
       }
     }

@@ -9,8 +9,6 @@ import Alerts from "@/pages/Alerts";
 import Profile from "@/pages/Profile";
 import Login from "@/pages/Login";
 import Register from "@/pages/Register";
-import ForgotPassword from "@/pages/ForgotPassword";
-import ResetPassword from "@/pages/ResetPassword";
 import { ProtectedRoute, GuestRoute } from "@/components/auth/ProtectedRoute";
 
 export default function AppRoutes() {
@@ -20,8 +18,6 @@ export default function AppRoutes() {
         <Route element={<GuestRoute />}>
           <Route index element={<Login />} />
           <Route path="register" element={<Register />} />
-          <Route path="forgot-password" element={<ForgotPassword />} />
-          <Route path="reset-password" element={<ResetPassword />} />
           <Route path="login" element={<Navigate to="/" replace />} />
         </Route>
 
