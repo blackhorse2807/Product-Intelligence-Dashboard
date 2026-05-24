@@ -101,7 +101,8 @@ export function CompetitorPricingDashboard({
   refreshing,
   onRefresh,
   canRefresh,
-  manualFieldsSaved = false,
+  refreshCooldownSec = 0,
+  autoRefreshIntervalSec = 60,
 }) {
   if (!canRefresh) {
     return (
@@ -119,6 +120,13 @@ export function CompetitorPricingDashboard({
   }
 
   const { prices = [], analytics, recommendation, lastCheckedAt } = pricing || {};
+  const refreshDisabled = refreshing || refreshCooldownSec > 0;
+  const refreshLabel =
+    refreshCooldownSec > 0
+      ? `Refresh in ${refreshCooldownSec}s`
+      : refreshing
+        ? "Refreshing..."
+        : "Refresh prices";
 
   return (
     <Card className="overflow-hidden border-border/80">
@@ -127,7 +135,7 @@ export function CompetitorPricingDashboard({
           <div>
             <CardTitle className="text-base font-semibold">Competitor pricing intelligence</CardTitle>
             <p className="mt-1 text-xs text-muted-foreground">
-              Flipkart vs Amazon, Myntra, Ajio & more ·{" "}
+              Flipkart vs Amazon, Myntra, Ajio & more · Auto-refresh every {autoRefreshIntervalSec}s ·{" "}
               {lastCheckedAt
                 ? `Last refreshed ${formatRelativeTime(lastCheckedAt)}`
                 : "Estimated from your saved price & MRP"}
@@ -138,14 +146,14 @@ export function CompetitorPricingDashboard({
             size="sm"
             className="gap-2"
             onClick={onRefresh}
-            disabled={refreshing}
+            disabled={refreshDisabled}
           >
             {refreshing ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
               <RefreshCw className="h-4 w-4" />
             )}
-            Refresh prices
+            {refreshLabel}
           </Button>
         </div>
       </CardHeader>

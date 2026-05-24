@@ -31,6 +31,7 @@ const productSchema = new mongoose.Schema(
     },
     suggestedKeywords: [{ type: String }],
     qualityScore: { type: Number, min: 0, max: 100, default: 0 },
+    createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", index: true },
   },
   { timestamps: true }
 );

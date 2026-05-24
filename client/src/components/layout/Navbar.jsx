@@ -1,10 +1,12 @@
-import { Menu, Search, UserCircle } from "lucide-react";
+import { LogOut, Menu, Search, UserCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useApp } from "@/context/AppContext";
+import { useAuth } from "@/context/AuthContext";
 
 export function Navbar() {
   const { toggleSidebar } = useApp();
+  const { user, logout } = useAuth();
 
   return (
     <header className="flex h-16 items-center justify-between border-b border-border bg-card/50 px-4 backdrop-blur md:px-6">
@@ -20,10 +22,14 @@ export function Navbar() {
 
       <div className="flex items-center gap-3">
         <div className="hidden text-right sm:block">
-          <p className="text-sm font-medium">Seller Workspace</p>
-          <p className="text-xs text-muted-foreground">Internship Demo</p>
+          <p className="text-sm font-medium">{user?.name || "Seller"}</p>
+          <p className="text-xs text-muted-foreground">{user?.email}</p>
         </div>
-        <UserCircle className="h-8 w-8 text-muted-foreground" />
+        <UserCircle className="hidden h-8 w-8 text-muted-foreground sm:block" />
+        <Button variant="outline" size="sm" className="gap-2" onClick={logout}>
+          <LogOut className="h-4 w-4" />
+          <span className="hidden sm:inline">Logout</span>
+        </Button>
       </div>
     </header>
   );

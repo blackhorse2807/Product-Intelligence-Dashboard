@@ -7,6 +7,7 @@ import {
   enhanceTitle,
   setActiveTitleSource,
   getCompetitorPrices,
+  downloadProductReport,
 } from "../controllers/productController.js";
 
 const router = Router();
@@ -14,6 +15,7 @@ const router = Router();
 router.get("/products", getProducts);
 router.post("/products", createProduct);
 router.get("/products/:id/competitor-prices", getCompetitorPrices);
+router.get("/products/:id/report", downloadProductReport);
 router.get("/products/:id", getProductById);
 router.patch("/products/:id", updateProduct);
 router.post("/products/:id/enhance-title", enhanceTitle);

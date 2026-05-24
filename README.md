@@ -48,6 +48,9 @@
 - **Deterministic title enhancement** from saved brand, category, color, size, material only (no OCR/AI text in title builder)
 - **Title source toggle** — switch listing title between original and enhanced (persisted in DB)
 - **Competitor pricing dashboard** — simulated marketplace prices, analytics, and pricing recommendations
+- **JWT authentication** — register, login, protected API routes, session persistence
+- **Product report download** — CSV export with catalog, validation, pricing, and alerts
+- **Auto competitor refresh** — server cron every 1 minute + client auto-refresh on product page
 - **Dashboard** — aggregate quality scores and issue severity counts
 - **Jobs & alerts** pages for async processing status and seller notifications
 
@@ -237,6 +240,8 @@ npm run seed
 | `CLOUDINARY_CLOUD_NAME` | Yes* | Cloudinary cloud name |
 | `CLOUDINARY_API_KEY` | Yes* | Cloudinary API key |
 | `CLOUDINARY_API_SECRET` | Yes* | Cloudinary API secret |
+| `JWT_SECRET` | Yes | Secret for signing JWT access tokens |
+| `JWT_EXPIRES_IN` | No | Token lifetime (default `7d`) |
 | `MAX_FILE_SIZE_MB` | No | Max upload size (default from env config) |
 
 \* Required for video upload; CSV and manual entry work without Cloudinary.
@@ -256,14 +261,16 @@ Use this checklist to confirm everything works:
 | Step | Action | Expected result |
 |------|--------|-----------------|
 | 1 | `curl http://localhost:5000/api/health` | `{"success":true,"message":"API is running"}` |
-| 2 | Open http://localhost:5173 | Dashboard loads |
-| 3 | **Upload → Manual entry** → fill title, brand, category, price, MRP → Create | Redirects to product page; saved details visible |
-| 4 | On product page, **Competitor pricing** section | Table with Flipkart + 6 competitors; analytics cards populated (no manual refresh required if price/MRP > 0) |
-| 5 | **Enhance title** (after manual save) | Enhanced title card appears; toggle Original/Enhanced |
-| 6 | **Upload → Products CSV** with valid headers | Import summary with valid/invalid row counts |
-| 7 | **Upload → Product Video** (short MP4, visible text/labels) | Job completes; product created with OCR extraction table |
-| 8 | **Jobs** page | Video job shows `COMPLETED` |
-| 9 | **Alerts** page | Alerts from validation / pricing |
+| 2 | Register at `/register` or run `npm run seed` and sign in with `demo@quantacus.local` / `demo123` | Login succeeds; dashboard loads |
+| 3 | Open http://localhost:5173 | Dashboard loads (redirects to login if not signed in) |
+| 4 | **Upload → Manual entry** → fill title, brand, category, price, MRP → Create | Redirects to product page; saved details visible |
+| 5 | On product page, **Competitor pricing** section | Table with Flipkart + 6 competitors; auto-refreshes every 1 min |
+| 6 | **Download report** on product page | CSV file downloads with full product intelligence |
+| 7 | **Enhance title** (after manual save) | Enhanced title card appears; toggle Original/Enhanced |
+| 8 | **Upload → Products CSV** with valid headers | Import summary with valid/invalid row counts |
+| 9 | **Upload → Product Video** (short MP4, visible text/labels) | Job completes; product created with OCR extraction table |
+| 10 | **Jobs** page | Video job shows `COMPLETED` |
+| 11 | **Alerts** page | Alerts from validation / pricing |
 
 **Sample CSV headers (required):**
 
@@ -283,6 +290,16 @@ Base URL: `http://localhost:5000/api` (or `/api` via Vite proxy)
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/health` | API health check |
+
+### Auth (public)
+
+| Method | Path | Body | Description |
+|--------|------|------|-------------|
+| `POST` | `/auth/register` | `{ name, email, password }` | Create account; returns JWT |
+| `POST` | `/auth/login` | `{ email, password }` | Sign in; returns JWT |
+| `GET` | `/auth/me` | — | Current user (Bearer token required) |
+
+All other `/api/*` routes require `Authorization: Bearer <token>`.
 
 ### Upload
 
@@ -308,6 +325,7 @@ Base URL: `http://localhost:5000/api` (or `/api` via Vite proxy)
 | `PATCH` | `/products/:id` | Update catalog fields; sets `manualFieldsSaved` |
 | `POST` | `/products/:id/enhance-title` | Generate enhanced title (requires manual save) |
 | `PATCH` | `/products/:id/title-source` | Body: `{ "source": "original" \| "enhanced" }` |
+| `GET` | `/products/:id/report?format=csv` | Download product intelligence report (CSV or `format=json`) |
 | `GET` | `/products/:id/competitor-prices` | Raw competitor price documents |
 
 ### Competitor pricing

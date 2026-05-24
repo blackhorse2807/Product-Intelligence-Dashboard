@@ -76,7 +76,7 @@ export function generateValidationSummary(results) {
   };
 }
 
-function rowToProductDoc(normalizedRow, enhancement, qualityScore) {
+function rowToProductDoc(normalizedRow, enhancement, qualityScore, userId) {
   return {
     skuId: normalizedRow.sku_id,
     title: normalizedRow.product_title,
@@ -92,6 +92,7 @@ function rowToProductDoc(normalizedRow, enhancement, qualityScore) {
     enhancedTitle: enhancement.enhancedTitle,
     suggestedKeywords: enhancement.keywords,
     qualityScore,
+    createdBy: userId || undefined,
     extractedAttributes: {
       source: "csv_import",
       manualFieldsSaved: true,
@@ -106,7 +107,7 @@ function rowToProductDoc(normalizedRow, enhancement, qualityScore) {
 /**
  * Validate all rows, store valid products (partial success).
  */
-export async function processCsvRows(rows) {
+export async function processCsvRows(rows, userId) {
   if (!rows.length) {
     throw new Error("CSV contains no product rows");
   }
@@ -152,7 +153,7 @@ export async function processCsvRows(rows) {
 
     try {
       const product = await Product.create(
-        rowToProductDoc(validation.normalizedRow, enhancement, qualityScore)
+        rowToProductDoc(validation.normalizedRow, enhancement, qualityScore, userId)
       );
 
       results.push({
@@ -181,7 +182,7 @@ export async function processCsvRows(rows) {
   return results;
 }
 
-export async function ingestProductsCsv(buffer) {
+export async function ingestProductsCsv(buffer, userId) {
   const { headers, rows } = await parseCsv(buffer);
   const headerValidation = validateHeaders(headers);
 
@@ -193,7 +194,7 @@ export async function ingestProductsCsv(buffer) {
     };
   }
 
-  const rowResults = await processCsvRows(rows);
+  const rowResults = await processCsvRows(rows, userId);
   const summary = generateValidationSummary(rowResults);
 
   return {

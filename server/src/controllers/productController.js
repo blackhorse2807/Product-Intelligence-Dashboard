@@ -16,6 +16,10 @@ import {
   refreshCompetitorPrices,
 } from "../services/competitorPricingService.js";
 import { hasProductPricing, parseProductAmount } from "../utils/productPricing.js";
+import {
+  buildProductReportCsv,
+  buildProductReportJson,
+} from "../services/productReportService.js";
 
 export const getProducts = asyncHandler(async (_req, res) => {
   const products = await Product.find().sort({ updatedAt: -1 });
@@ -60,6 +64,7 @@ export const createProduct = asyncHandler(async (req, res) => {
     color: body.color || "",
     size: body.size || "",
     material: body.material || "",
+    createdBy: req.user?._id,
     extractedAttributes: {
       source: "manual_upload",
       manualFieldsSaved: true,
@@ -354,4 +359,23 @@ export const setActiveTitleSource = asyncHandler(async (req, res) => {
 export const getCompetitorPrices = asyncHandler(async (req, res) => {
   const prices = await CompetitorPrice.find({ productId: req.params.id }).sort({ lastCheckedAt: -1 });
   return successResponse(res, prices, "Competitor prices fetched");
+});
+
+export const downloadProductReport = asyncHandler(async (req, res) => {
+  const format = String(req.query.format || "csv").toLowerCase();
+
+  if (format === "json") {
+    const report = await buildProductReportJson(req.params.id);
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="product-report-${report.product.skuId || req.params.id}.json"`
+    );
+    return res.send(JSON.stringify(report, null, 2));
+  }
+
+  const { filename, content, mimeType } = await buildProductReportCsv(req.params.id);
+  res.setHeader("Content-Type", mimeType);
+  res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+  return res.send(content);
 });

@@ -4,6 +4,7 @@ import env from "./config/env.js";
 import { connectDB } from "./config/db.js";
 import routes from "./routes/index.js";
 import { errorHandler, notFoundHandler } from "./middlewares/errorHandler.js";
+import { startCompetitorRefreshCron } from "./jobs/competitorRefreshCron.js";
 
 const app = express();
 
@@ -27,6 +28,8 @@ async function start() {
   }
 
   await connectDB(env.mongodbUri);
+
+  startCompetitorRefreshCron();
 
   app.listen(env.port, () => {
     console.log(`Server running on port ${env.port} (${env.nodeEnv})`);

@@ -33,6 +33,7 @@ export const uploadVideo = asyncHandler(async (req, res) => {
       format: media.format,
       duration: media.duration,
       bytes: media.bytes,
+      userId: req.user?._id,
     },
   });
 
@@ -57,7 +58,7 @@ export const uploadProductsCsv = asyncHandler(async (req, res) => {
     throw err;
   }
 
-  const result = await ingestProductsCsv(req.file.buffer);
+  const result = await ingestProductsCsv(req.file.buffer, req.user?._id);
 
   if (!result.success) {
     return errorResponse(res, "CSV is missing required headers", 400, {

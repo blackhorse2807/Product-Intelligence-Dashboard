@@ -112,6 +112,7 @@ async function processVideoExtractionJob(job) {
       videoPublicId,
       imagePublicId: videoPublicId,
       enhancedTitle: "",
+      createdBy: job.metadata?.userId || undefined,
     });
 
     await saveValidationIssues(product._id, validation);

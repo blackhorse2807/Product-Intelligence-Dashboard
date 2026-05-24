@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAsync } from "@/hooks/useAsync";
@@ -12,14 +12,19 @@ import { EnhancedTitleCard } from "@/components/product/EnhancedTitleCard";
 import { TitleSourceToggle } from "@/components/product/TitleSourceToggle";
 import { CompetitorPricingDashboard } from "@/components/product/CompetitorPricingDashboard";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, PenLine } from "lucide-react";
+import { ArrowLeft, Download, PenLine } from "lucide-react";
 import { hasProductPricing } from "@/utils/productPricing";
+
+const REFRESH_INTERVAL_MS = 60_000;
 
 export default function ProductDetails() {
   const { id } = useParams();
   const [enhancing, setEnhancing] = useState(false);
   const [refreshingPrices, setRefreshingPrices] = useState(false);
+  const [downloadingReport, setDownloadingReport] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
+  const [refreshCooldownSec, setRefreshCooldownSec] = useState(0);
+  const lastManualRefreshRef = useRef(0);
   const { data, loading, error, refetch } = useAsync(() => productService.getById(id), [id]);
 
   const product = data?.product;
@@ -38,7 +43,27 @@ export default function ProductDetails() {
 
   useEffect(() => {
     pricingBootstrapped.current = false;
+    lastManualRefreshRef.current = 0;
+    setRefreshCooldownSec(0);
   }, [id]);
+
+  useEffect(() => {
+    if (refreshCooldownSec <= 0) return undefined;
+    const timer = setInterval(() => {
+      setRefreshCooldownSec((prev) => (prev <= 1 ? 0 : prev - 1));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [refreshCooldownSec]);
+
+  const runPriceRefresh = useCallback(async () => {
+    setRefreshingPrices(true);
+    try {
+      await competitorService.refresh(id);
+      await refetch();
+    } finally {
+      setRefreshingPrices(false);
+    }
+  }, [id, refetch]);
 
   useEffect(() => {
     if (loading || !product || !hasPricing || pricingBootstrapped.current) return;
@@ -48,18 +73,21 @@ export default function ProductDetails() {
     if (hasMarketData && rowCount > 1) return;
 
     pricingBootstrapped.current = true;
-    (async () => {
-      setRefreshingPrices(true);
-      try {
-        await competitorService.refresh(id);
-        await refetch();
-      } catch {
-        pricingBootstrapped.current = false;
-      } finally {
-        setRefreshingPrices(false);
-      }
-    })();
-  }, [loading, product, hasPricing, competitorPricing, id, refetch]);
+    runPriceRefresh().catch(() => {
+      pricingBootstrapped.current = false;
+    });
+  }, [loading, product, hasPricing, competitorPricing, runPriceRefresh]);
+
+  useEffect(() => {
+    if (!hasPricing || !id) return undefined;
+
+    const interval = setInterval(() => {
+      if (document.hidden) return;
+      runPriceRefresh().catch(() => {});
+    }, REFRESH_INTERVAL_MS);
+
+    return () => clearInterval(interval);
+  }, [hasPricing, id, runPriceRefresh]);
 
   const handleEnhance = async () => {
     setEnhancing(true);
@@ -77,12 +105,24 @@ export default function ProductDetails() {
   };
 
   const handleRefreshPrices = async () => {
-    setRefreshingPrices(true);
+    const now = Date.now();
+    const elapsed = now - lastManualRefreshRef.current;
+    if (lastManualRefreshRef.current && elapsed < REFRESH_INTERVAL_MS) {
+      setRefreshCooldownSec(Math.ceil((REFRESH_INTERVAL_MS - elapsed) / 1000));
+      return;
+    }
+
+    lastManualRefreshRef.current = now;
+    setRefreshCooldownSec(60);
+    await runPriceRefresh();
+  };
+
+  const handleDownloadReport = async (format = "csv") => {
+    setDownloadingReport(true);
     try {
-      await competitorService.refresh(id);
-      await refetch();
+      await productService.downloadReport(id, format);
     } finally {
-      setRefreshingPrices(false);
+      setDownloadingReport(false);
     }
   };
 
@@ -113,12 +153,28 @@ export default function ProductDetails() {
           <ArrowLeft className="h-4 w-4" />
           Products
         </Link>
-        {!manualFieldsSaved && (
-          <Button size="sm" variant="outline" className="gap-2" onClick={() => setEditOpen(true)}>
-            <PenLine className="h-4 w-4" />
-            Add details
-          </Button>
-        )}
+        <div className="flex flex-wrap gap-2">
+          {product && (
+            <>
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-2"
+                onClick={() => handleDownloadReport("csv")}
+                disabled={downloadingReport}
+              >
+                <Download className="h-4 w-4" />
+                {downloadingReport ? "Preparing..." : "Download report"}
+              </Button>
+              {!manualFieldsSaved && (
+                <Button size="sm" variant="outline" className="gap-2" onClick={() => setEditOpen(true)}>
+                  <PenLine className="h-4 w-4" />
+                  Add details
+                </Button>
+              )}
+            </>
+          )}
+        </div>
       </div>
 
       <h1 className="text-xl font-semibold tracking-tight line-clamp-2">{pageTitle}</h1>
@@ -176,7 +232,8 @@ export default function ProductDetails() {
             refreshing={refreshingPrices}
             onRefresh={handleRefreshPrices}
             canRefresh={canRefreshPricing}
-            manualFieldsSaved={manualFieldsSaved}
+            refreshCooldownSec={refreshCooldownSec}
+            autoRefreshIntervalSec={60}
           />
         </>
       )}
